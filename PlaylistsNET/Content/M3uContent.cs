@@ -69,45 +69,53 @@ namespace PlaylistsNET.Content
             int seconds = 0;
             while (!streamReader.EndOfStream)
             {
-                string line = streamReader.ReadLine();
-                if (line.StartsWith("#"))
+                try
                 {
-                    if (playlist.IsExtended)
+                    string line = streamReader.ReadLine();
+                    if (line.StartsWith("#"))
                     {
-                        if (line.StartsWith("#EXTINF"))
+                        if (playlist.IsExtended)
                         {
-                            prevLineIsExtInf = true;
-                            title = GetTitle(line);
-                            seconds = GetSeconds(line);
+                            if (line.StartsWith("#EXTINF"))
+                            {
+                                prevLineIsExtInf = true;
+                                title = GetTitle(line);
+                                seconds = GetSeconds(line);
+                            }
+                            else if (line.StartsWith("#EXTALB"))
+                            {
+                                album = GetAlbum(line);
+                            }
+                            else if (line.StartsWith("#EXTART"))
+                            {
+                                artist = GetArtist(line);
+                            }
                         }
-                        else if (line.StartsWith("#EXTALB"))
+                    }
+                    else
+                    {
+                        if (!playlist.IsExtended || !prevLineIsExtInf)
                         {
-                            album = GetAlbum(line);
+                            title = "";
+                            artist = "";
+                            album = "";
+                            seconds = 0;
                         }
-                        else if (line.StartsWith("#EXTART"))
+                        playlist.PlaylistEntries.Add(new M3uPlaylistEntry()
                         {
-                            artist = GetArtist(line);
-                        }
+                            Album = album,
+                            AlbumArtist = artist,
+                            Duration = TimeSpan.FromSeconds(seconds),
+                            Path = line,
+                            Title = title
+                        });
+                        prevLineIsExtInf = false;
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    if (!playlist.IsExtended || !prevLineIsExtInf)
-                    {
-                        title = "";
-                        artist = "";
-                        album = "";
-                        seconds = 0;
-                    }
-                    playlist.PlaylistEntries.Add(new M3uPlaylistEntry()
-                    {
-                        Album = album,
-                        AlbumArtist = artist,
-                        Duration = TimeSpan.FromSeconds(seconds),
-                        Path = line,
-                        Title = title
-                    });
-                    prevLineIsExtInf = false;
+
+                    throw;
                 }
             }
             return playlist;
@@ -115,16 +123,16 @@ namespace PlaylistsNET.Content
 
         private int GetSeconds(string line)
         {
-            int seconds = 0;
-            try
-            {
-                //0123456789
-                //#EXTINF:1234,
-                string s = line.Substring(8, line.IndexOf(',') - 8);
-                seconds = (int)double.Parse(s);
-            }
-            catch { }
-            return seconds;
+            var spaceIndex = line.IndexOf(' ');
+
+            if (spaceIndex <= 8)
+                return 0;
+
+            var secondsString = line.Substring(8, spaceIndex - 8).Trim();
+
+            if (int.TryParse(secondsString, out var seconds))
+                return seconds;
+            return 0;
         }
 
         private string GetTitle(string line)
